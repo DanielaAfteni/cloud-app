@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Deploy to Kubernetes
 
 on:
   push:
@@ -40,3 +40,11 @@ jobs:
           context: .
           push: true
           tags: aftenidaniela/cloud-app:latest
+
+      - name: Set up Kubeconfig
+        uses: azure/setup-kubectl@v1
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}  # Make sure to add your kubeconfig as a GitHub Secret
+
+      - name: Deploy to Kubernetes
+        run: kubectl apply -f k8s/deployment.yaml  # Make sure to specify the correct path to your deployment.yaml
