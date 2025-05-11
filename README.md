@@ -39,3 +39,103 @@ java -jar ./build/libs/tech-challenge-0.0.1-SNAPSHOT.jar
 2. Application should be able to send metrics to a monitoring system.
 3. Database should be running on a separate container.
 4. Storage should be mounted to the database container.
+
+
+### Start your Kubernetes cluster (if it's not running already)
+
+```
+minikube start
+```
+### Navigate to your project directory
+
+```
+cd C:\Users\user\Desktop\Cloud_App\cloud-app
+```
+
+### Apply the deployment
+
+```
+kubectl apply -f deployment.yaml
+```
+
+### Apply the ingress configuration
+
+```
+kubectl apply -f ingress.yaml
+```
+
+### Apply the hpa configuration
+
+```
+kubectl apply -f hpa.yaml
+```
+
+
+
+### Verify that everything is up. Check deployments
+
+```
+kubectl get deployments
+```
+
+### Verify that everything is up. Check pods
+
+```
+kubectl get pods
+```
+
+### Verify that everything is up. Check services
+
+```
+kubectl get svc
+```
+
+### Verify that everything is up. Check ingress (confirm external IP)
+
+```
+kubectl get ingress
+```
+
+### Verify that everything is up. Check the HPA status
+
+```
+kubectl get hpa
+```
+
+
+### Port-forward to test if needed:
+
+```
+kubectl port-forward service/cloud-app-service 8080:80
+```
+
+### Then test in browser or with curl:
+
+```
+curl http://localhost:8080
+```
+
+### Start ngrok to expose the app to the internet
+```
+ngrok http 8080
+```
+
+or 
+
+```
+ngrok http http://localhost:8080
+```
+
+
+### Create (recreate) load generator
+```
+kubectl delete pod load-generator
+kubectl apply -f load-generator.yaml
+```
+
+### Monitor autoscaling (dynamic autoscaling) and WAIT!
+
+```
+while ($true) { kubectl get hpa; Start-Sleep -Seconds 10 }
+```
+
