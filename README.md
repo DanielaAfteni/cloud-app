@@ -139,3 +139,67 @@ kubectl apply -f load-generator.yaml
 while ($true) { kubectl get hpa; Start-Sleep -Seconds 10 }
 ```
 
+```
+docker build -t aftenidaniela/cloud-app-test .
+docker push aftenidaniela/cloud-app-test
+kubectl set image deployment/cloud-app cloud-app=aftenidaniela/cloud-app-test
+
+
+```
+
+For Spring Boot app to be listening on the container's external interface in ```src\main\resources\application.properties``` make sure to have:
+
+```
+server.address=0.0.0.0
+```
+
+Then run the following again
+
+```
+./gradlew bootJar
+docker build -t aftenidaniela/cloud-app:v4 .
+docker push aftenidaniela/cloud-app:v4
+kubectl set image deployment/cloud-app cloud-app=aftenidaniela/cloud-app:v4
+```
+
+Wait for the pod to be ready:
+
+```
+kubectl get pods -l app=cloud-app
+```
+
+Then try:
+
+```
+kubectl port-forward deployment/cloud-app 8080:8080
+curl http://localhost:8080
+```
+
+
+If you want to rollback to the previous version — for example, aftenidaniela/cloud-app (which may be v1 or latest) — run:
+
+```
+kubectl set image deployment/cloud-app cloud-app=aftenidaniela/cloud-app
+```
+
+Or to another specific version:
+
+```
+kubectl set image deployment/cloud-app cloud-app=aftenidaniela/cloud-app:v2
+```
+
+Then wait for it to update:
+```
+kubectl rollout status deployment/cloud-app
+```
+
+And verify:
+```
+kubectl get deployment cloud-app -o=jsonpath="{.spec.template.spec.containers[*].image}"
+```
+
+Also:
+```
+kubectl port-forward deployment/cloud-app 8080:8080
+curl http://localhost:8080
+```
