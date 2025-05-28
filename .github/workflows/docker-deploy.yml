@@ -9,6 +9,9 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
+    env:
+      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/cloud-app
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -22,7 +25,7 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x ./gradlew
 
-    - name: Build the Spring Boot JAR
+    - name: Build with Gradle
       run: ./gradlew bootJar
 
     - name: Set up Docker Buildx
@@ -34,19 +37,27 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Extract version from Git SHA
+    - name: Extract short SHA for version tag
       id: vars
-      run: |
-        echo "VERSION=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-    - name: Build and Push Docker Image with Git SHA Tag
+    - name: Build and push Docker image with version tag and latest
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
         tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/cloud-app:latest
-          ${{ secrets.DOCKERHUB_USERNAME }}/cloud-app:${{ steps.vars.outputs.VERSION }}
+          ${{ env.IMAGE_NAME }}:latest
+          ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}
 
-    - name: Output image version
-      run: echo "Deployed image version: ${{ steps.vars.outputs.VERSION }}"
+    - name: Output deployment instructions
+      run: |
+        echo "✅ Image pushed:"
+        echo "  - ${{ env.IMAGE_NAME }}:latest"
+        echo "  - ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}"
+        echo ""
+        echo "📦 To update your local cluster, run:"
+        echo "kubectl set image deployment/cloud-app cloud-app=${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}"
+        echo ""
+        echo "🔄 To rollback, use:"
+        echo "kubectl rollout undo deployment/cloud-app"
