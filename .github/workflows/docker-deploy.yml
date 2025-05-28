@@ -22,8 +22,8 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x ./gradlew
 
-    - name: Build with Gradle
-      run: ./gradlew build
+    - name: Build the Spring Boot JAR
+      run: ./gradlew bootJar
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
@@ -34,10 +34,18 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Build and push Docker image
+    - name: Extract version from Git SHA
+      id: vars
+      run: echo "VERSION=sha-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Build and Push Docker Image with Git SHA Tag
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/cloud-app:latest
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/cloud-app:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/cloud-app:${{ steps.vars.outputs.VERSION }}
 
+    - name: Output image version
+      run: echo "Deployed image version: ${{ steps.vars.outputs.VERSION }}"
