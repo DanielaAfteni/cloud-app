@@ -36,7 +36,9 @@ jobs:
 
     - name: Extract version from Git SHA
       id: vars
-      run: echo "VERSION=sha-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      run: |
+        GIT_SHA=$(git rev-parse --short HEAD)
+        echo "VERSION=sha-${GIT_SHA}" >> $GITHUB_OUTPUT
 
     - name: Build and Push Docker Image with Git SHA Tag
       uses: docker/build-push-action@v5
