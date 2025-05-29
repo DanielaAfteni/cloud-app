@@ -222,3 +222,32 @@ kubectl rollout status deployment/cloud-app
 kubectl port-forward service/cloud-app-service 8080:80
 ngrok http 8080
 ```
+
+
+
+deployment.yaml
+
+replicas: 2
+This means two pods will run your cloud-app container simultaneously.
+
+✅ Why it matters:
+
+* Increases availability—if one pod crashes, the other can still serve traffic.
+
+* Helps with load balancing when combined with a Service.
+
+* Supports zero-downtime deployments, because one pod can keep running while the other is updated.
+
+
+
+ingress.yaml
+
+* External client (browser) requests http://<cluster-ip-or-domain>/
+
+* Ingress captures this request and matches the / path.
+
+* Routes the request to:
+
+Service cloud-app-service on port 80, which forwards it to
+
+Your app pods, which listen on port 8080.

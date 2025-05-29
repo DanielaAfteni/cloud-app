@@ -33,7 +33,7 @@ kind: Deployment
 metadata:
   name: cloud-app
 spec:
-  replicas: 2  # ✅ Increased for zero downtime
+  replicas: 1  # ✅ Increased for zero downtime
   strategy:
     type: RollingUpdate
     rollingUpdate:
