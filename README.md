@@ -210,3 +210,15 @@ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/late
 kubectl top pods
 kubectl top nodes
 ```
+
+
+
+
+After GitHub Action
+
+```
+kubectl set image deployment/cloud-app cloud-app=aftenidaniela/cloud-app:<version>
+kubectl rollout status deployment/cloud-app
+kubectl port-forward service/cloud-app-service 8080:80
+ngrok http 8080
+```
