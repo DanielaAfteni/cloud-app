@@ -10,7 +10,7 @@ jobs:
     runs-on: [self-hosted, Windows, X64]
 
     env:
-      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/cloud-app
+      IMAGE_NAME: cloud-app
 
     steps:
     - name: Checkout code
