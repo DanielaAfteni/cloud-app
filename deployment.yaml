@@ -47,6 +47,8 @@ spec:
       labels:
         app: cloud-app
     spec:
+      imagePullSecrets:
+        - name: regcred 
       containers:
         - name: cloud-app
           image: aftenidaniela/cloud-app  # ✅ Use the new image
