@@ -33,14 +33,16 @@ jobs:
 
     - name: Extract short SHA for version tag
       id: vars
-      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      shell: bash 
+      shell: powershell
+      run: |
+        $sha = git rev-parse --short HEAD
+        echo "sha_short=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
     - name: Build Docker image
       shell: powershell
       run: |
         $tag = "${{ steps.vars.outputs.sha_short }}"
-        docker build -t $env:IMAGE_NAME:$tag .
+        docker build -t "${{ env.IMAGE_NAME }}:$tag" .
 
     - name: Tag Docker image for Docker Hub
       run: docker tag ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }} ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}
