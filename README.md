@@ -485,8 +485,6 @@ Rezumat:
 
 
 
-
-
 ```
 kubectl get deployment cloud-app -o=jsonpath="{.spec.template.spec.containers[*].image}"
 

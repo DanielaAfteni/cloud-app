@@ -1,0 +1,23 @@
+name: Rollback Deployment
+
+on:
+  workflow_dispatch:  # Allows manual trigger via GitHub UI
+    inputs:
+      revision:
+        description: "Revision to rollback to (optional)"
+        required: false
+        default: ""
+
+jobs:
+  rollback:
+    runs-on: [self-hosted, Windows, X64]
+
+    steps:
+    - name: Rollback to previous or specific revision
+      run: |
+        if ("${{ github.event.inputs.revision }}") {
+          kubectl rollout undo deployment/cloud-app --to-revision=${{ github.event.inputs.revision }}
+        } else {
+          kubectl rollout undo deployment/cloud-app
+        }
+      shell: powershell
