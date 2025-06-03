@@ -175,6 +175,7 @@ kubectl port-forward deployment/cloud-app 8080:8080
 curl http://localhost:8080
 ```
 
+### Rollback the application to a previous version
 
 If you want to rollback to the previous version — for example, aftenidaniela/cloud-app (which may be v1 or latest) — run:
 
@@ -205,6 +206,7 @@ curl http://localhost:8080
 ```
 
 
+### Monitor the application
 ```
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 kubectl top pods
@@ -213,8 +215,7 @@ kubectl top nodes
 
 
 
-
-After GitHub Action
+### After GitHub Action (before implementing update Kubernetes deployment image)
 
 ```
 kubectl set image deployment/cloud-app cloud-app=aftenidaniela/cloud-app:<version>
@@ -225,29 +226,257 @@ ngrok http 8080
 
 
 
-deployment.yaml
+### End result (Build Docker image + Tag Docker image for Docker Hub + Push Docker image + Update Kubernetes deployment image):
 
-replicas: 2
-This means two pods will run your cloud-app container simultaneously.
+Have Docker open
+```
+minikube start
+```
 
-✅ Why it matters:
+Open PowerShell as Administrator
+```
+Set-ExecutionPolicy RemoteSigned -Scope LocalMachine
+cd .\actions-runner\
+./run.cmd
+```
 
-* Increases availability—if one pod crashes, the other can still serve traffic.
+Port forwarding:
+```
+kubectl port-forward deployment/cloud-app 8080:8080
+```
 
-* Helps with load balancing when combined with a Service.
+And verify Docker image tag:
+```
+kubectl get deployment cloud-app -o=jsonpath="{.spec.template.spec.containers[*].image}"
+```
 
-* Supports zero-downtime deployments, because one pod can keep running while the other is updated.
+Show pods:
+```
+kubectl get pods -w
+```
+
+## Code explanation
 
 
 
-ingress.yaml
+### ```.github\workflows\docker-deploy.yml```
 
-* External client (browser) requests http://<cluster-ip-or-domain>/
+La fiecare push pe main, el:
+* Construiește aplicația Java cu Gradle.
+* Creează un container Docker cu aplicația.
+* Îl împinge pe Docker Hub.
+* Actualizează un deployment Kubernetes cu imaginea nouă.
 
-* Ingress captures this request and matches the / path.
 
-* Routes the request to:
+```
+on:
+  push:
+    branches:
+      - main
+```
+* Rulează workflow-ul doar la push pe branch-ul main.
 
-Service cloud-app-service on port 80, which forwards it to
+```
+jobs:
+  build-and-push:
+    runs-on: [self-hosted, Windows, X64]
+```
+* Jobul rulează pe un runner self-hosted pe Windows (care a fost configurat in GitHub Actions).
 
-Your app pods, which listen on port 8080.
+```
+env:
+      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/cloud-app
+```
+* Variabilă de mediu IMAGE_NAME cu formatul:
+```<docker-username>/cloud-app``` (de exemplu: ```aftenidaniela/cloud-app```).
+
+```
+steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+```
+* Ia codul sursă din repository.
+
+```
+- name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+```
+* Configurează Java 17 (este folosit pentru a construi aplicația cu Gradle).
+
+```
+- name: Build with Gradle
+      run: ./gradlew bootJar
+```
+* Rulează bootJar pentru a crea un .jar Spring Boot.
+
+```
+- name: Log in to DockerHub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+```
+* Face login la Docker Hub cu credentialele stocate în Secrets in GitHub.
+
+```
+- name: Extract short SHA for version tag
+      id: vars
+      shell: powershell
+      run: |
+        $sha = git rev-parse --short HEAD
+        echo "sha_short=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+```
+* Creează un “short SHA” (ex. a1b2c3d) pentru a fi folosit ca tag la imaginea Docker.
+
+```
+- name: Build Docker image
+      shell: powershell
+      run: |
+        $tag = "${{ steps.vars.outputs.sha_short }}"
+        docker build -t "${{ env.IMAGE_NAME }}:$tag" .
+```
+* Creează imaginea cu tag-ul short SHA.
+
+```
+- name: Tag Docker image for Docker Hub
+      run: docker tag ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }} ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}
+      shell: powershell
+```
+* Adaugă un tag pentru Docker Hub (uneori e redundant, dar clarifică naming-ul).
+
+```
+- name: Push Docker image
+      run: docker push ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}
+      shell: powershell
+```
+* Face push pe Docker Hub.
+
+```
+- name: Update Kubernetes deployment image
+      run: kubectl set image deployment/cloud-app cloud-app=${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}
+      shell: powershell
+```
+* Folosește kubectl să actualizeze Deployment-ul cloud-app în cluster-ul Kubernetes cu noua imagine.
+
+
+Rezumat:
+1. Push to main
+2. Build Gradle -> .jar
+3. docker build (cu short SHA tag)
+4. docker push la Docker Hub
+5. kubectl set image in K8s
+
+
+### ```ingress.yaml```
+
+* Ingress = resursă Kubernetes care gestionează accesul extern la servicii din cluster. Este ca un “front door” pentru trafic HTTP/HTTPS.
+
+```
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+```
+* E un Ingress modern (versiunea actuală networking.k8s.io/v1).
+
+
+```
+metadata:
+  name: cloud-app-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+```
+* name: numele Ingress-ului (cloud-app-ingress).
+
+* annotations: traefik.ingress.kubernetes.io/router.entrypoints: web – spune că Traefik (un ingress controller popular) va folosi entrypoint-ul web (de obicei portul 80, HTTP).
+
+```
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cloud-app-service
+            port:
+              number: 80
+```
+Această secțiune stabilește regulile de rutare:
+
+* paths:
+
+path: / – orice URL (ex. /, /login, /api, etc.).
+
+pathType: Prefix – orice URL care începe cu / va fi direcționat la backend.
+
+* backend:
+
+service.name: cloud-app-service – Ingress va direcționa cererile către un Service numit cloud-app-service.
+
+service.port.number: 80 – va folosi portul 80 expus de acel Service.
+
+Rezumat:
+
+1. Internet (ex: https://mydomain.com)
+      │
+      ▼
+2. Ingress (cloud-app-ingress)
+      │
+      ▼
+3. Service (cloud-app-service:80)
+      │
+      ▼
+4. Pods (cu app: cloud-app)
+
+E nevoie de un Ingress Controller (ex. Traefik, Nginx, etc.) instalat în cluster.
+
+
+### ```load-generator.yaml```
+
+* Creează un Pod cu un container BusyBox care rulează un script infinit:
+
+```
+while true; do wget -q -O- http://cloud-app.default.svc.cluster.local:8080/; done
+```
+
+* Trimite constant cereri HTTP (wget) către aplicația cloud-app din namespace-ul default.
+
+* Este un fel de simulator de trafic – forțează aplicația să consume CPU și memorie.
+
+* Scop - Să declanșeze autoscaling-ul (HPA) pentru cloud-app ca să vedem cum se scalează.
+
+* Controlul numărului de replici
+```
+minReplicas: 1
+maxReplicas: 5
+```
+* Va avea între 1 și 5 Pod-uri în funcție de load.
+
+* Metrică de scalare
+```
+metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+```
+* Metrica urmărită este CPU.
+* Dacă CPU-ul mediu pe Pod-uri depășește 50% (averageUtilization: 50), HPA va crea Pod-uri suplimentare (până la 5).
+* Dacă load-ul scade, va reduce la minim (1 Pod).
+
+
+Rezumat:
+[load-generator Pod]  --- cereri HTTP --->  [Deployment cloud-app (1-5 Pods)]
+                                            ▲
+                                   [HPA monitorizează CPU-ul]
+
+
+### Cum lucrează împreună load-generator.yaml + ingress.yaml?
+1. Podul load-generator bombardează cloud-app cu cereri → crește consumul CPU.
+2. HPA vede că media CPU e >50% → scalează cloud-app la 2, 3, 4, 5 replici.
+3. Dacă load-ul scade, HPA va reduce replicile înapoi la 1.
