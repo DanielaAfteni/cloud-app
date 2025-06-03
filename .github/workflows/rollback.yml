@@ -1,23 +1,30 @@
-name: Rollback Deployment
+name: DockerHub Rollback
 
 on:
-  workflow_dispatch:  # Allows manual trigger via GitHub UI
-    inputs:
-      revision:
-        description: "Revision to rollback to (optional)"
-        required: false
-        default: ""
+  workflow_dispatch:
 
 jobs:
   rollback:
     runs-on: [self-hosted, Windows, X64]
 
+    env:
+      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/cloud-app
+
     steps:
-    - name: Rollback to previous or specific revision
+    - name: Get Docker tags from DockerHub
+      id: tags
+      shell: powershell
       run: |
-        if ("${{ github.event.inputs.revision }}") {
-          kubectl rollout undo deployment/cloud-app --to-revision=${{ github.event.inputs.revision }}
-        } else {
-          kubectl rollout undo deployment/cloud-app
-        }
+        $headers = @{ "Accept" = "application/json" }
+        $uri = "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/cloud-app/tags?page_size=2&page=1&ordering=last_updated"
+        $response = Invoke-RestMethod -Uri $uri -Headers $headers
+        $rollbackTag = $response.results[1].name
+        echo "rollback_tag=$rollbackTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+    - name: Show tag being rolled back to
+      run: echo "Rolling back to image tag: ${{ steps.tags.outputs.rollback_tag }}"
+      shell: powershell
+
+    - name: Update Kubernetes deployment to previous tag
+      run: kubectl set image deployment/cloud-app cloud-app=${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.rollback_tag }}
       shell: powershell
