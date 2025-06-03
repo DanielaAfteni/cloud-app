@@ -480,3 +480,19 @@ Rezumat:
 1. Podul load-generator bombardează cloud-app cu cereri → crește consumul CPU.
 2. HPA vede că media CPU e >50% → scalează cloud-app la 2, 3, 4, 5 replici.
 3. Dacă load-ul scade, HPA va reduce replicile înapoi la 1.
+
+
+
+
+
+
+
+```
+kubectl get deployment cloud-app -o=jsonpath="{.spec.template.spec.containers[*].image}"
+
+kubectl rollout history deployment/cloud-app
+
+kubectl rollout undo deployment/cloud-app --to-revision=65
+
+ubectl get deployment cloud-app -o=jsonpath="{.spec.template.spec.containers[*].image}"
+```
